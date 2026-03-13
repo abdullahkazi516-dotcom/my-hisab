@@ -31,33 +31,40 @@ if check_password():
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(ttl="0s")
 
-    # ড্যাশবোর্ড (Dashboard)
+    # ড্যাশবোর্ড (Dashboard) - এখানে বিয়োগের হিসাবটি করা হয়েছে
     if not df.empty:
-        total_income = pd.to_numeric(df[df['Category'] == 'আয়']['Amount']).sum()
-        total_expense = pd.to_numeric(df[df['Category'] == 'ব্যয়']['Amount']).sum()
-        total_due = pd.to_numeric(df[df['Category'] == 'বকেয়া']['Amount']).sum()
-        total_receivable = pd.to_numeric(df[df['Category'] == 'পাওনা']['Amount']).sum()
-        balance = total_income - total_expense
+        # সব কলামকে সংখ্যায় রূপান্তর
+        df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
+        
+        total_income = df[df['Category'] == 'আয়']['Amount'].sum()
+        total_expense = df[df['Category'] == 'ব্যয়']['Amount'].sum()
+        total_due = df[df['Category'] == 'বকেয়া']['Amount'].sum()
+        total_receivable = df[df['Category'] == 'পাওনা']['Amount'].sum()
+        total_due_paid = df[df['Category'] == 'বকেয়া পরিশোধ']['Amount'].sum()
+        
+        # আপনার চাহিদা মতো: বকেয়া থেকে বকেয়া পরিশোধ বিয়োগ হবে
+        current_due = total_due - total_due_paid
+        
+        # হাতে নগদ হিসাব: মোট আয় - মোট ব্যয় - মোট বকেয়া পরিশোধ
+        balance = total_income - total_expense - total_due_paid
 
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("মোট আয়", f"{total_income} টাকা")
         col2.metric("মোট ব্যয়", f"-{total_expense} টাকা")
-        col3.metric("মোট বকেয়া", f"{total_due} টাকা")
+        col3.metric("বর্তমান বকেয়া (দেনা)", f"{current_due} টাকা", delta=f"-{total_due_paid} শোধ", delta_color="normal")
         col4.metric("মোট পাওনা", f"{total_receivable} টাকা")
         
-        st.info(f"💵 **বর্তমান ক্যাশ ব্যালেন্স: {balance} টাকা**")
+        st.info(f"💵 **বর্তমান ক্যাশ ব্যালেন্স (হাতে নগদ): {balance} টাকা**")
         st.divider()
 
-    # ডাটা ইনপুট ফর্ম (এখানে আপনার চাহিদা মতো ধরণ আগে দেওয়া হয়েছে)
+    # ডাটা ইনপুট ফর্ম
     with st.expander("➕ নতুন হিসাব যোগ করুন", expanded=True):
         with st.form("entry_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
                 date = st.date_input("তারিখ নির্বাচন করুন", datetime.now())
-                # 'ধরণ' এখন আগে আসবে
-                cat = st.selectbox("হিসাবের ধরণ", ["আয়", "ব্যয়", "বকেয়া", "পাওনা"])
+                cat = st.selectbox("হিসাবের ধরণ", ["আয়", "ব্যয়", "বকেয়া", "পাওনা", "বকেয়া পরিশোধ"])
             with col2:
-                # 'বিবরণ' এখন পরে আসবে
                 desc = st.text_input("বিবরণ লিখুন")
                 amt = st.number_input("টাকার পরিমাণ", min_value=0, step=1)
             
@@ -70,7 +77,7 @@ if check_password():
             new_data = pd.DataFrame([{"Date": date.strftime('%Y-%m-%d'), "Description": desc, "Category": cat, "Amount": amt}])
             updated_df = pd.concat([df, new_data], ignore_index=True)
             conn.update(data=updated_df)
-            st.success(f"সফলভাবে {cat} হিসেবে সেভ হয়েছে!")
+            st.success(f"সফলভাবে '{cat}' হিসেবে সেভ হয়েছে!")
             st.rerun()
 
     # হিসাবের তালিকা
@@ -89,4 +96,3 @@ if check_password():
     if st.sidebar.button("লগআউট"):
         st.session_state["logged_in"] = False
         st.rerun()
-
