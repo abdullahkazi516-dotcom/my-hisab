@@ -10,7 +10,7 @@ st.set_page_config(page_title="আমার ডিজিটাল ক্যা�
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
 
 # ডিফল্ট ইউজার ও পাসওয়ার্ড
-DEFAULT_USER = " Kazi_Mamun"
+DEFAULT_USER = "Kazi_Mamun"
 DEFAULT_PW = "427054"
 
 # লগইন ফাংশন
