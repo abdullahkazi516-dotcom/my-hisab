@@ -10,8 +10,8 @@ st.set_page_config(page_title="আমার ডিজিটাল ক্যা�
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
 
 # ডিফল্ট ইউজার ও পাসওয়ার্ড
-DEFAULT_USER = "admin"
-DEFAULT_PW = "123"
+DEFAULT_USER = " Kazi_Mamun"
+DEFAULT_PW = "427054"
 
 # লগইন ফাংশন
 def check_password():
@@ -50,11 +50,14 @@ if check_password():
         if not df.empty:
             ti = df[df['Category'] == 'আয়']['Amount'].sum()
             te = df[df['Category'] == 'ব্যয়']['Amount'].sum()
+            # বকেয়া এবং দেনা দুইটাই যোগ হয়ে বর্তমান বকেয়া দেখাবে
             td = df[df['Category'] == 'বকেয়া']['Amount'].sum()
+            t_dena = df[df['Category'] == 'দেনা']['Amount'].sum()
+            
             tp = df[df['Category'] == 'পাওনা']['Amount'].sum()
             tp_paid = df[df['Category'] == 'বকেয়া পরিশোধ']['Amount'].sum()
             
-            current_due = td - tp_paid
+            current_due = (td + t_dena) - tp_paid
             balance = ti - te - tp_paid
 
             # কাস্টম CSS দিয়ে বক্স স্টাইল করা
@@ -82,7 +85,7 @@ if check_password():
             with col2:
                 st.markdown(f'<div class="main-box expense">মোট ব্যয়<br><h2>{te}</h2></div>', unsafe_allow_html=True)
             with col3:
-                st.markdown(f'<div class="main-box due">বর্তমান বকেয়া<br><h2>{current_due}</h2></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="main-box due">বর্তমান দেনা/বকেয়া<br><h2>{current_due}</h2></div>', unsafe_allow_html=True)
             with col4:
                 st.markdown(f'<div class="main-box receivable">মোট পাওনা<br><h2>{tp}</h2></div>', unsafe_allow_html=True)
             
@@ -94,12 +97,12 @@ if check_password():
             col_a, col_b = st.columns(2)
             with col_a:
                 date = st.date_input("তারিখ নির্বাচন করুন", datetime.now())
-                cat = st.selectbox("হিসাবের ধরণ", ["আয়", "ব্যয়", "বকেয়া", "পাওনা", "বকেয়া পরিশোধ"])
+                # এখানে 'দেনা' অপশন যোগ করা হয়েছে
+                cat = st.selectbox("হিসাবের ধরণ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা", "বকেয়া পরিশোধ"])
             with col_b:
                 desc = st.text_input("বিবরণ লিখুন")
                 amt = st.number_input("টাকার পরিমাণ", min_value=0, step=1)
             
-            # বাটনের নাম Submit করা হয়েছে
             submit = st.form_submit_button("Submit")
 
         if submit:
@@ -109,7 +112,7 @@ if check_password():
                 new_data = {"data": [{"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}]}
                 res = requests.post(API_URL, json=new_data)
                 if res.status_code == 201:
-                    st.success("হিসাব সেভ হয়েছে!")
+                    st.success(f"{cat} সেভ হয়েছে!")
                     st.rerun()
                 else:
                     st.error("সেভ হতে সমস্যা হয়েছে।")
