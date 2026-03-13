@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -6,8 +7,8 @@ import requests
 # পেজ সেটিংস
 st.set_page_config(page_title="আমার ডিজিটাল ক্যাশ বুক", page_icon="💰")
 
-#
-API_URL =https://sheetdb.io/api/v1/7mzpsfz9aa5r7
+# আপনার SheetDB লিঙ্কটি এখানে সঠিকভাবে বসানো হয়েছে
+API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
 
 # লগইন ফাংশন
 def check_password():
@@ -22,7 +23,7 @@ def check_password():
                 st.session_state["logged_in"] = True
                 st.rerun()
             else:
-                st.error("ভুল ইউজারনেম বা পাসওয়ার্ড")
+                st.error("ভুল পাসওয়ার্ড")
         return False
     return True
 
@@ -38,7 +39,7 @@ if check_password():
     except:
         df = pd.DataFrame(columns=["Date", "Description", "Category", "Amount"])
 
-    # ড্যাশবোর্ড (হিসাব কিতাব)
+    # ড্যাশবোর্ড
     if not df.empty:
         ti = df[df['Category'] == 'আয়']['Amount'].sum()
         te = df[df['Category'] == 'ব্যয়']['Amount'].sum()
@@ -46,15 +47,12 @@ if check_password():
         tp = df[df['Category'] == 'পাওনা']['Amount'].sum()
         tp_paid = df[df['Category'] == 'বকেয়া পরিশোধ']['Amount'].sum()
         
-        current_due = td - tp_paid
-        balance = ti - te - tp_paid
-
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("মোট আয়", f"{ti}")
         col2.metric("মোট ব্যয়", f"-{te}")
-        col3.metric("বর্তমান বকেয়া", f"{current_due}")
+        col3.metric("বর্তমান বকেয়া", f"{td - tp_paid}")
         col4.metric("মোট পাওনা", f"{tp}")
-        st.info(f"💵 **বর্তমান নগদ জমা: {balance} টাকা**")
+        st.info(f"💵 **বর্তমান নগদ জমা: {ti - te - tp_paid} টাকা**")
 
     # ইনপুট ফর্ম
     with st.form("entry_form", clear_on_submit=True):
@@ -71,16 +69,15 @@ if check_password():
             new_data = {"data": [{"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}]}
             res = requests.post(API_URL, json=new_data)
             if res.status_code == 201:
-                st.success(f"সফলভাবে {cat} হিসেবে সেভ হয়েছে!")
+                st.success("হিসাব সেভ হয়েছে!")
                 st.rerun()
             else:
-                st.error("গুগল শিটে সেভ হতে পারছে না।")
+                st.error("সেভ হতে সমস্যা হয়েছে।")
 
     st.subheader("📊 হিসাবের তালিকা")
-    st.dataframe(df.iloc[::-1], use_container_width=True)
+    if not df.empty:
+        st.dataframe(df.iloc[::-1], use_container_width=True)
 
     if st.sidebar.button("লগআউট"):
         st.session_state["logged_in"] = False
         st.rerun()
-
-
