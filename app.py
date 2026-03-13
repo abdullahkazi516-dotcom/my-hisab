@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import requests
-import base64
 
 # পেজ সেটিংস
 st.set_page_config(page_title="আমার ডিজিটাল ক্যাশ বুক", page_icon="💰", layout="wide")
@@ -11,23 +10,29 @@ st.set_page_config(page_title="আমার ডিজিটাল ক্যা�
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
 
 # ডিফল্ট ইউজার ও পাসওয়ার্ড
-DEFAULT_USER = "Kazi_Mamun"
-DEFAULT_PW = "427054"
+FIXED_USER = "admin" # এটি এখন অটোমেটিক সেভ থাকবে
+DEFAULT_PW = "123"
 
 # লগইন ফাংশন
 def check_password():
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
+    
     if not st.session_state["logged_in"]:
         st.title("🔐 লগইন করুন")
-        user = st.text_input("ইউজারনেম")
-        pw = st.text_input("পাসওয়ার্ড", type="password")
+        
+        # ইউজারনেম আর ইনপুট দিতে হবে না, এটি অটোমেটিক থাকবে
+        st.info(f"ইউজার: {FIXED_USER}")
+        
+        # শুধুমাত্র পাসওয়ার্ডের ঘর
+        pw = st.text_input("পাসওয়ার্ড দিন", type="password")
+        
         if st.button("প্রবেশ করুন"):
-            if user == DEFAULT_USER and pw == DEFAULT_PW:
+            if pw == DEFAULT_PW:
                 st.session_state["logged_in"] = True
                 st.rerun()
             else:
-                st.error("ভুল ইউজারনেম বা পাসওয়ার্ড")
+                st.error("ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।")
         return False
     return True
 
@@ -90,8 +95,8 @@ if check_password():
                 desc = st.text_input("বিবরণ লিখুন")
                 amt = st.number_input("টাকার পরিমাণ", min_value=0, step=1)
             
-            # মেমো বা ভাউচার ছবি আপলোড অপশন (ক্যামেরা/ফাইল)
-            voucher_file = st.file_uploader("মেমো বা ভাউচারের ছবি তুলুন বা আপলোড করুন (Optional)", type=['jpg', 'png', 'jpeg'])
+            # ক্যামেরা/ভাউচার অপশন
+            voucher_file = st.file_uploader("মেমো বা ভাউচারের ছবি (ঐচ্ছিক)", type=['jpg', 'png', 'jpeg'])
             
             submit = st.form_submit_button("Submit")
 
@@ -99,15 +104,11 @@ if check_password():
             if desc == "" or amt == 0:
                 st.warning("সঠিক তথ্য দিন।")
             else:
-                voucher_data = "No Image"
-                if voucher_file is not None:
-                    # ছবিটিকে টেক্সট ফরম্যাটে রূপান্তর (Base64) যাতে শিটে রাখা যায়
-                    voucher_data = "Image Uploaded" # বর্তমানে নিরাপত্তার জন্য শুধু টেক্সট রাখা হচ্ছে
-                
-                new_data = {"data": [{"Date": str(date), "Description": desc, "Category": cat, "Amount": amt, "Voucher": voucher_data}]}
+                voucher_status = "No Image" if voucher_file is None else "Image Uploaded"
+                new_data = {"data": [{"Date": str(date), "Description": desc, "Category": cat, "Amount": amt, "Voucher": voucher_status}]}
                 res = requests.post(API_URL, json=new_data)
                 if res.status_code == 201:
-                    st.success(f"{cat} সেভ হয়েছে!")
+                    st.success(f"{cat} সফলভাবে সেভ হয়েছে!")
                     st.rerun()
                 else:
                     st.error("সেভ হতে সমস্যা হয়েছে।")
@@ -121,10 +122,8 @@ if check_password():
         st.info("স্থায়ীভাবে পাসওয়ার্ড পরিবর্তনের জন্য GitHub কোডে DEFAULT_PW টি বদলে দিন।")
         new_pw = st.text_input("নতুন পাসওয়ার্ড দিন", type="password")
         if st.button("আপডেট"):
-            st.success("পাসওয়ার্ড আপডেট হয়েছে!")
+            st.success("পাসওয়ার্ড আপডেট হয়েছে! (স্থায়ী করতে কোডে পরিবর্তন করুন)")
 
     elif menu == "লগআউট":
         st.session_state["logged_in"] = False
         st.rerun()
-
-
