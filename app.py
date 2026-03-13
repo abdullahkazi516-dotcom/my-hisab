@@ -12,7 +12,7 @@ API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
 
 # পাসওয়ার্ড সেটিংস
 FIXED_USER = "Kazi_Mamun"
-DEFAULT_PW = "123456"
+DEFAULT_PW = "427054"
 
 # ভয়েস ফাংশন
 def play_voice_success():
