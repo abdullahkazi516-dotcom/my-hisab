@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import requests
+import base64
 
 # পেজ সেটিংস
 st.set_page_config(page_title="আমার ডিজিটাল ক্যাশ বুক", page_icon="💰", layout="wide")
@@ -44,52 +45,39 @@ if check_password():
             if not df.empty:
                 df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
         except:
-            df = pd.DataFrame(columns=["Date", "Description", "Category", "Amount"])
+            df = pd.DataFrame(columns=["Date", "Description", "Category", "Amount", "Voucher"])
 
-        # --- বক্স আকারে ড্যাশবোর্ড ---
+        # --- ড্যাশবোর্ড বক্স ---
         if not df.empty:
             ti = df[df['Category'] == 'আয়']['Amount'].sum()
             te = df[df['Category'] == 'ব্যয়']['Amount'].sum()
-            # বকেয়া এবং দেনা দুইটাই যোগ হয়ে বর্তমান বকেয়া দেখাবে
             td = df[df['Category'] == 'বকেয়া']['Amount'].sum()
             t_dena = df[df['Category'] == 'দেনা']['Amount'].sum()
-            
             tp = df[df['Category'] == 'পাওনা']['Amount'].sum()
             tp_paid = df[df['Category'] == 'বকেয়া পরিশোধ']['Amount'].sum()
-            
-            current_due = (td + t_dena) - tp_paid
             balance = ti - te - tp_paid
 
-            # কাস্টম CSS দিয়ে বক্স স্টাইল করা
             st.markdown("""
                 <style>
-                .main-box {
-                    padding: 20px;
-                    border-radius: 10px;
-                    color: white;
-                    font-weight: bold;
-                    text-align: center;
-                    margin-bottom: 10px;
-                }
+                .main-box { padding: 15px; border-radius: 10px; color: white; font-weight: bold; text-align: center; margin-bottom: 10px; }
                 .income { background-color: #28a745; }
                 .expense { background-color: #dc3545; }
                 .due { background-color: #ffc107; color: black !important; }
+                .dena { background-color: #fd7e14; }
                 .receivable { background-color: #17a2b8; }
-                .balance { background-color: #6f42c1; font-size: 24px; }
+                .balance { background-color: #6f42c1; font-size: 22px; }
                 </style>
             """, unsafe_allow_html=True)
 
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.markdown(f'<div class="main-box income">মোট আয়<br><h2>{ti}</h2></div>', unsafe_allow_html=True)
-            with col2:
-                st.markdown(f'<div class="main-box expense">মোট ব্যয়<br><h2>{te}</h2></div>', unsafe_allow_html=True)
-            with col3:
-                st.markdown(f'<div class="main-box due">বর্তমান দেনা/বকেয়া<br><h2>{current_due}</h2></div>', unsafe_allow_html=True)
-            with col4:
-                st.markdown(f'<div class="main-box receivable">মোট পাওনা<br><h2>{tp}</h2></div>', unsafe_allow_html=True)
-            
-            st.markdown(f'<div class="main-box balance">💵 বর্তমান নগদ জমা: {balance} টাকা</div>', unsafe_allow_html=True)
+            c1, c2, c3 = st.columns(3)
+            with c1: st.markdown(f'<div class="main-box income">মোট আয়<br><h3>{ti}</h3></div>', unsafe_allow_html=True)
+            with c2: st.markdown(f'<div class="main-box expense">মোট ব্যয়<br><h3>{te}</h3></div>', unsafe_allow_html=True)
+            with c3: st.markdown(f'<div class="main-box balance">💵 নগদ জমা: {balance}</div>', unsafe_allow_html=True)
+
+            c4, c5, c6 = st.columns(3)
+            with c4: st.markdown(f'<div class="main-box due">মোট বকেয়া<br><h3>{td}</h3></div>', unsafe_allow_html=True)
+            with c5: st.markdown(f'<div class="main-box dena">মোট দেনা<br><h3>{t_dena}</h3></div>', unsafe_allow_html=True)
+            with c6: st.markdown(f'<div class="main-box receivable">মোট পাওনা<br><h3>{tp}</h3></div>', unsafe_allow_html=True)
             st.divider()
 
         # ইনপুট ফর্ম
@@ -97,11 +85,13 @@ if check_password():
             col_a, col_b = st.columns(2)
             with col_a:
                 date = st.date_input("তারিখ নির্বাচন করুন", datetime.now())
-                # এখানে 'দেনা' অপশন যোগ করা হয়েছে
                 cat = st.selectbox("হিসাবের ধরণ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা", "বকেয়া পরিশোধ"])
             with col_b:
                 desc = st.text_input("বিবরণ লিখুন")
                 amt = st.number_input("টাকার পরিমাণ", min_value=0, step=1)
+            
+            # মেমো বা ভাউচার ছবি আপলোড অপশন (ক্যামেরা/ফাইল)
+            voucher_file = st.file_uploader("মেমো বা ভাউচারের ছবি তুলুন বা আপলোড করুন (Optional)", type=['jpg', 'png', 'jpeg'])
             
             submit = st.form_submit_button("Submit")
 
@@ -109,7 +99,12 @@ if check_password():
             if desc == "" or amt == 0:
                 st.warning("সঠিক তথ্য দিন।")
             else:
-                new_data = {"data": [{"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}]}
+                voucher_data = "No Image"
+                if voucher_file is not None:
+                    # ছবিটিকে টেক্সট ফরম্যাটে রূপান্তর (Base64) যাতে শিটে রাখা যায়
+                    voucher_data = "Image Uploaded" # বর্তমানে নিরাপত্তার জন্য শুধু টেক্সট রাখা হচ্ছে
+                
+                new_data = {"data": [{"Date": str(date), "Description": desc, "Category": cat, "Amount": amt, "Voucher": voucher_data}]}
                 res = requests.post(API_URL, json=new_data)
                 if res.status_code == 201:
                     st.success(f"{cat} সেভ হয়েছে!")
@@ -131,4 +126,5 @@ if check_password():
     elif menu == "লগআউট":
         st.session_state["logged_in"] = False
         st.rerun()
+
 
