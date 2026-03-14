@@ -2,67 +2,76 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 
-# ডাটাবেস কানেকশন
+# ১. ডাটাবেস কানেকশন
 def init_db():
     conn = sqlite3.connect('business_pro.db')
     c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS shops (shop_name TEXT PRIMARY KEY, route TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS products (p_name TEXT PRIMARY KEY, p_price REAL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS orders 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, total REAL, date TEXT)''')
     conn.commit()
     return conn
 
 conn = init_db()
 c = conn.cursor()
 
-st.sidebar.title("ম্যানেজমেন্ট")
-menu = ["অর্ডার এন্ট্রি", "প্রোডাক্ট লিস্ট ও দাম সংশোধন", "নতুন দোকান যোগ"]
-choice = st.sidebar.selectbox("মেনু", menu)
+# সাইডবার মেনু
+st.sidebar.title("মেইন মেনু")
+menu = ["🏠 ড্যাশবোর্ড", "🛒 অর্ডার এন্ট্রি", "📦 প্রোডাক্ট ম্যানেজমেন্ট", "🏪 দোকান যোগ করুন"]
+choice = st.sidebar.selectbox("অপশন বেছে নিন", menu)
 
-# --- প্রোডাক্ট লিস্ট ও দাম সংশোধন (আপনার সমস্যার সমাধান এখানে) ---
-if choice == "প্রোডাক্ট লিস্ট ও দাম সংশোধন":
-    st.subheader("🛠 পণ্যের তালিকা ও দাম আপডেট করুন")
+# --- ২. ড্যাশবোর্ড (ডিফল্ট পেজ) ---
+if choice == "🏠 ড্যাশবোর্ড":
+    st.title("📊 বিজনেস ড্যাশবোর্ড")
     
-    # বর্তমান প্রোডাক্টের তালিকা দেখা
+    # ডাটা সংগ্রহ
+    total_shops = pd.read_sql_query("SELECT COUNT(*) as count FROM shops", conn)['count'][0]
+    total_prods = pd.read_sql_query("SELECT COUNT(*) as count FROM products", conn)['count'][0]
+    total_sales = pd.read_sql_query("SELECT SUM(total) as total FROM orders", conn)['total'][0] or 0
+    
+    # ৩টি বক্স আকারে তথ্য দেখানো
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.info("🏪 মোট দোকান")
+        st.subheader(f"{total_shops} টি")
+    with col2:
+        st.success("📦 মোট প্রোডাক্ট")
+        st.subheader(f"{total_prods} টি")
+    with col3:
+        st.warning("💰 মোট বিক্রি")
+        st.subheader(f"{total_sales} টাকা")
+    
+    st.write("---")
+    st.write("👈 মেনু থেকে কাজ শুরু করতে সাইডবার ব্যবহার করুন।")
+
+# --- ৩. প্রোডাক্ট ম্যানেজমেন্ট (দাম সংশোধনসহ) ---
+elif choice == "📦 প্রোডাক্ট ম্যানেজমেন্ট":
+    st.subheader("🛠 প্রোডাক্ট লিস্ট ও দাম সংশোধন")
     products_df = pd.read_sql_query("SELECT * FROM products", conn)
     
     if not products_df.empty:
-        st.write("বর্তমান লিস্ট:")
-        st.dataframe(products_df)
-        
+        st.dataframe(products_df, use_container_width=True)
         st.write("---")
-        st.write("#### দাম পরিবর্তন করুন")
-        product_to_update = st.selectbox("কোন পণ্যের দাম বদলাবেন?", products_df['p_name'].tolist())
-        new_price = st.number_input("নতুন সঠিক দাম লিখুন", min_value=0.0, step=0.5)
+        product_to_update = st.selectbox("পণ্য সিলেক্ট করুন", products_df['p_name'].tolist())
+        new_price = st.number_input("সঠিক দাম লিখুন", min_value=0.0)
         
         if st.button("দাম আপডেট করুন ✅"):
             c.execute("UPDATE products SET p_price = ? WHERE p_name = ?", (new_price, product_to_update))
             conn.commit()
-            st.success(f"সফলভাবে {product_to_update}-এর দাম আপডেট করা হয়েছে!")
-            st.rerun() # পেজ রিফ্রেশ করে নতুন দাম দেখাবে
-            
-        if st.button("পণ্যটি ডিলিট করুন ❌"):
-            c.execute("DELETE FROM products WHERE p_name = ?", (product_to_update,))
-            conn.commit()
-            st.warning(f"{product_to_update} লিস্ট থেকে মুছে ফেলা হয়েছে।")
+            st.success("দাম আপডেট হয়েছে!")
             st.rerun()
-    else:
-        st.info("লিস্টে কোনো পণ্য নেই।")
-
-# --- নতুন প্রোডাক্ট যোগ করার অপশন ---
+    
+    # নতুন পণ্য যোগ
     st.write("---")
-    st.write("#### নতুন পণ্য যোগ করুন")
-    with st.form("add_product"):
-        new_p_name = st.text_input("পণ্যের নাম")
-        new_p_price = st.number_input("দাম", min_value=0.0)
-        if st.form_submit_button("সেভ"):
-            if new_p_name:
-                try:
-                    c.execute("INSERT INTO products VALUES (?,?)", (new_p_name, new_p_price))
-                    conn.commit()
-                    st.success("যোগ হয়েছে!")
-                    st.rerun()
-                except:
-                    st.error("এই পণ্যটি আগে থেকেই আছে।")
+    with st.expander("➕ নতুন পণ্য যোগ করুন"):
+        n_p = st.text_input("পণ্যের নাম")
+        n_pr = st.number_input("দাম", key="new_pr")
+        if st.button("সেভ"):
+            c.execute("INSERT OR IGNORE INTO products VALUES (?,?)", (n_p, n_pr))
+            conn.commit()
+            st.rerun()
 
-# বাকি মেনুগুলো (অর্ডার এন্ট্রি ইত্যাদি) আগের মতোই থাকবে...
+# বাকি কাজগুলো (অর্ডার এন্ট্রি ও দোকান যোগ) আগের কোড অনুযায়ী কাজ করবে...
 
 conn.close()
