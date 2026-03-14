@@ -2,38 +2,41 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import requests
-import streamlit.components.v1 as components
 import json
 
-# ১. পেজ সেটিংস ও কাস্টম ডিজাইন
+# ১. পেজ সেটিংস ও ডিজাইন (Custom CSS)
 st.set_page_config(page_title="ডিজিটাল ক্যাশ বুক", page_icon="💰", layout="wide")
 
 st.markdown("""
     <style>
-    /* তালিকার বর্ডার ও ডিজাইন */
-    .list-item {
+    /* ফর্মের ব্যাকগ্রাউন্ড ডিজাইন */
+    .stForm {
+        background-color: #f9f9f9;
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #ddd;
+    }
+    /* রঙিন বর্ডার কার্ড ডিজাইন */
+    .record-card {
         padding: 15px;
         border-radius: 10px;
         margin-bottom: 10px;
         background-color: white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }
-    .income-border { border-left: 8px solid #28a745; background-color: #f8fff9; }
-    .expense-border { border-left: 8px solid #dc3545; background-color: #fff8f8; }
-    .due-border { border-left: 8px solid #ffc107; background-color: #fffdf5; }
-    .dena-border { border-left: 8px solid #fd7e14; background-color: #fff9f5; }
-    .powna-border { border-left: 8px solid #17a2b8; background-color: #f5fcff; }
-    
-    .item-text { font-size: 16px; font-weight: 500; }
+    .income-b { border-left: 8px solid #28a745; }
+    .expense-b { border-left: 8px solid #dc3545; }
+    .due-b { border-left: 8px solid #ffc107; }
+    .dena-b { border-left: 8px solid #fd7e14; }
+    .powna-b { border-left: 8px solid #17a2b8; }
     </style>
     """, unsafe_allow_html=True)
 
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
-FIXED_USER = "Kazi_Mamun"
 DEFAULT_PW = "427054"
 
 # ২. ডাটা ফেচিং
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=5)
 def get_data():
     try:
         res = requests.get(API_URL, timeout=5)
@@ -44,7 +47,7 @@ def get_data():
     except:
         return pd.DataFrame(columns=["Date", "Description", "Category", "Amount"])
 
-# ৩. লগইন হ্যান্ডলিং (ফিক্সড)
+# ৩. লগইন চেক
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
@@ -58,57 +61,55 @@ if not st.session_state["logged_in"]:
         else:
             st.error("ভুল পাসওয়ার্ড!") #
 else:
-    # ড্যাশবোর্ড ও এন্ট্রি
     st.title("💰 আমার ডিজিটাল ক্যাশ বুক")
     df = get_data()
 
-    # ক্যাশ জমা ড্যাশবোর্ড
+    # ড্যাশবোর্ড সামারি
     if not df.empty:
         ti = df[df['Category'] == 'আয়']['Amount'].sum()
         te = df[df['Category'] == 'ব্যয়']['Amount'].sum()
-        st.success(f"💵 বর্তমান নগদ জমা: {ti - te} টাকা")
+        st.info(f"💵 বর্তমান নগদ জমা: {ti - te} টাকা")
 
-    # এন্ট্রি ফর্ম (আপনার দেওয়া ডিজাইনের মতো)
-    with st.expander("➕ নতুন লেনদেন যোগ করুন"):
-        with st.form("entry_form", clear_on_submit=True):
-            date = st.date_input("তারিখ", datetime.now())
-            cat = st.selectbox("ধরণ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
-            desc = st.text_input("বিবরণ")
-            amt = st.number_input("টাকা", min_value=0)
-            if st.form_submit_button("Submit"):
-                if desc:
-                    new_data = {"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}
-                    requests.post(API_URL, json={"data": [new_data]})
-                    st.cache_data.clear()
-                    st.rerun()
+    # ৪. ডাটা এন্ট্রি ফর্ম (সবসময় খোলা থাকবে)
+    st.subheader("➕ নতুন লেনদেন যোগ করুন")
+    with st.form("main_form", clear_on_submit=True):
+        date = st.date_input("তারিখ", datetime.now())
+        cat = st.selectbox("ধরণ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
+        desc = st.text_input("বিবরণ")
+        amt = st.number_input("টাকা", min_value=0)
+        
+        if st.form_submit_button("Submit"):
+            if desc:
+                new_entry = {"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}
+                requests.post(API_URL, json={"data": [new_entry]})
+                st.cache_data.clear()
+                st.success("লেনদেনটি সফলভাবে সেভ হয়েছে!")
+                st.rerun()
 
-    # ৪. বিভাগ অনুযায়ী রঙিন বর্ডার যুক্ত তালিকা
+    # ৫. বিভাগ অনুযায়ী রঙিন বর্ডার তালিকা (Tabs)
     st.subheader("📊 হিসাবের তালিকা (বিভাগ অনুযায়ী)")
     tabs = st.tabs(["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
     
-    cat_map = {
-        "আয়": ("income-border", tabs[0]),
-        "ব্যয়": ("expense-border", tabs[1]),
-        "বকেয়া": ("due-border", tabs[2]),
-        "দেনা": ("dena-border", tabs[3]),
-        "পাওনা": ("powna-border", tabs[4])
+    config = {
+        "আয়": ("income-b", tabs[0]),
+        "ব্যয়": ("expense-b", tabs[1]),
+        "বকেয়া": ("due-b", tabs[2]),
+        "দেনা": ("dena-b", tabs[3]),
+        "পাওনা": ("powna-b", tabs[4])
     }
 
-    for category, (css_class, tab_obj) in cat_map.items():
+    for category, (border_class, tab_obj) in config.items():
         with tab_obj:
-            filtered_df = df[df['Category'] == category]
-            if not filtered_df.empty:
-                for idx, row in filtered_df.iloc[::-1].iterrows():
-                    # বর্ডার ও কালার কোডেড বক্স
+            filtered = df[df['Category'] == category]
+            if not filtered.empty:
+                for _, row in filtered.iloc[::-1].iterrows():
                     st.markdown(f"""
-                        <div class="list-item {css_class}">
-                            <div class="item-text">
-                                📅 {row['Date']} | {row['Description']} | 💰 {row['Amount']}
-                            </div>
+                        <div class="record-card {border_class}">
+                            <b>📅 {row['Date']}</b> | {row['Description']} | <b>💰 {row['Amount']} টাকা</b>
                         </div>
                     """, unsafe_allow_html=True)
             else:
-                st.info(f"এই মুহূর্তে কোনো {category} রেকর্ড নেই।")
+                st.write(f"এই মুহূর্তে কোনো {category} রেকর্ড নেই।")
 
     if st.sidebar.button("লগআউট"):
         st.session_state["logged_in"] = False
