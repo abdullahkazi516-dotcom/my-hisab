@@ -2,34 +2,48 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-# গুগল শিট কানেকশন
+# ১. টাইটেল (সবার আগে দেখাবে)
+st.markdown("### 💰 আমার ডিজিটাল ক্যাশ বুক")
+
+# ২. কানেকশন সেটআপ
 conn = st.connection("gsheets", type=GSheetsConnection)
+df = conn.read()
 
-# ডাটা পড়া এবং পরিষ্কার করা
-raw_data = conn.read()
-df = pd.DataFrame(raw_data) # ডাটাকে ডাটাফ্রেমে রূপান্তর
+# ৩. উপরের অংশ: নতুন লেনদেন যোগ করার ফর্ম
+with st.container():
+    st.markdown("#### ➕ নতুন লেনদেন যোগ করুন")
+    col1, col2 = st.columns(2)
+    with col1:
+        date = st.date_input("📅 তারিখ")
+        category = st.selectbox("📂 ধরণ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
+    with col2:
+        details = st.text_input("📝 বিবরণ", placeholder="যেমন: দোকানের বাকি")
+        amount = st.number_input("💰 টাকা", min_value=0, step=1)
+    
+    if st.button("Submit"):
+        # এখানে আপনার নতুন ডাটা সেভ করার পুরনো কোডটি বসিয়ে দিন
+        st.success("নতুন ডাটা যোগ হয়েছে!")
 
+st.divider() # একটি লম্বা দাগ দিয়ে আলাদা করা
+
+# ৪. নিচের অংশ: আপনার সেই এডিট টেবিল
 st.subheader("📊 হিসাবের তালিকা (বিভাগ অনুযায়ী)")
 
-# এডিট করার সিস্টেম (সহজভাবে)
 edited_df = st.data_editor(
     df,
-    num_rows="dynamic",
+    num_rows="dynamic", 
     use_container_width=True,
-    key="cashbook_editor_simple"
+    key="main_table_editor"
 )
 
-# সেভ বাটন
+# ৫. সেভ বাটন
 if st.button("পরিবর্তনগুলো সেভ করুন"):
-    try:
-        # গুগল শিট আপডেট
-        conn.update(data=edited_df)
-        st.success("✅ সফলভাবে সেভ হয়েছে!")
-        st.rerun()
-    except Exception as e:
-        st.error(f"ভুল হয়েছে: {e}")
+    conn.update(data=edited_df)
+    st.success("✅ সব পরিবর্তন গুগল শিটে সেভ হয়েছে!")
+    st.rerun()
 
-# মোট হিসাব
+# ৬. মোট টাকার হিসাব (একদম নিচে)
 if not edited_df.empty:
-    total_val = edited_df['Amount'].sum()
-    st.markdown(f"### **মোট পরিমাণ: {total_val} টাকা**")
+    # এখানে 'Amount' বা 'টাকা' কলামের নাম আপনার শিট অনুযায়ী দিবেন
+    total_val = edited_df['Amount'].sum() 
+    st.markdown(f"## **মোট পরিমাণ: {total_val} টাকা**")
