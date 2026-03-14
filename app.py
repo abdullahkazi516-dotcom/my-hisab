@@ -2,28 +2,29 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import requests
-import json
 
 # ১. পেজ সেটিংস ও ডিজাইন
 st.set_page_config(page_title="ডিজিটাল ক্যাশ বুক", page_icon="💰", layout="wide")
 
 st.markdown("""
     <style>
+    /* ইনপুট ঘরগুলোর রঙিন বর্ডার */
     div[data-baseweb="input"] { border: 2px solid #4A90E2 !important; border-radius: 10px !important; }
     div[data-baseweb="select"] { border: 2px solid #F5A623 !important; border-radius: 10px !important; }
-    .total-box {
-        background-color: #f1f3f4; padding: 10px; border-radius: 5px;
-        text-align: right; font-weight: bold; font-size: 18px;
-        color: #333; border-top: 2px solid #ddd; margin-top: 5px;
+    
+    /* টোটাল বক্স ডিজাইন */
+    .total-summary {
+        background-color: #e8f0fe; padding: 15px; border-radius: 10px;
+        text-align: right; font-weight: bold; font-size: 20px;
+        color: #1967d2; border: 1px solid #4A90E2; margin-top: 10px;
     }
-    .stButton>button { width: 100%; border-radius: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
 DEFAULT_PW = "427054"
 
-# ২. ডাটা ফাংশন
+# ২. ডাটা ফেচিং ফাংশন
 @st.cache_data(ttl=5)
 def get_data():
     try:
@@ -35,12 +36,7 @@ def get_data():
     except:
         return pd.DataFrame(columns=["Date", "Description", "Category", "Amount"])
 
-def delete_row(desc):
-    requests.delete(f"{API_URL}/Description/{desc}")
-    st.cache_data.clear()
-    st.rerun()
-
-# ৩. লগইন চেক
+# ৩. লগইন সিস্টেম
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
@@ -53,63 +49,59 @@ if not st.session_state["logged_in"]:
             st.rerun()
         else: st.error("ভুল পাসওয়ার্ড!")
 else:
-    st.title("💰 ডিজিটাল ক্যাশ বুক")
+    st.title("💰 আমার ডিজিটাল ক্যাশ বুক")
     df = get_data()
 
-    # ৪. ব্যালেন্স হাইড/শো
+    # ৪. ব্যালেন্স হাইড/শো অপশন
     if not df.empty:
         ti = df[df['Category'] == 'আয়']['Amount'].sum()
         te = df[df['Category'] == 'ব্যয়']['Amount'].sum()
         with st.expander("👁️ বর্তমান জমা টাকা দেখতে টাচ করুন"):
-            st.success(f"### মোট জমা: {ti - te} টাকা")
+            st.info(f"### মোট নগদ জমা: {ti - te} টাকা")
 
-    # ৫. ডাটা এন্ট্রি ফর্ম
+    # ৫. ডাটা এন্ট্রি ফর্ম (রঙিন ইনপুট)
     st.subheader("➕ নতুন লেনদেন যোগ করুন")
-    with st.form("main_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        date = col1.date_input("তারিখ", datetime.now())
-        cat = col1.selectbox("ধরণ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
-        desc = col2.text_input("বিবরণ")
-        amt = col2.number_input("টাকা", min_value=0)
+    with st.form("entry_form", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        date = c1.date_input("📅 তারিখ", datetime.now())
+        cat = c1.selectbox("📂 ধরণ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
+        desc = c2.text_input("📝 বিবরণ")
+        amt = c2.number_input("💰 টাকা", min_value=0)
         if st.form_submit_button("সংরক্ষণ করুন"):
             if desc:
-                new_entry = {"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}
-                requests.post(API_URL, json={"data": [new_entry]})
+                new_data = {"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}
+                requests.post(API_URL, json={"data": [new_data]})
                 st.cache_data.clear()
                 st.rerun()
 
-    # ৬. টেবিল ভিউ ও এডিট/ডিলিট অপশন
-    st.subheader("📊 হিসাবের তালিকা ও টোটাল")
+    # ৬. বিভাগ অনুযায়ী গোছানো টেবিল ও টোটাল
+    st.subheader("📊 বিভাগ অনুযায়ী লেনদেনের তালিকা")
     tabs = st.tabs(["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
-    categories = ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"]
+    cats = ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"]
 
     for i, tab in enumerate(tabs):
         with tab:
-            filtered = df[df['Category'] == categories[i]]
+            filtered = df[df['Category'] == cats[i]]
             if not filtered.empty:
-                # টেবিল হেডার
-                header_cols = st.columns([2, 3, 2, 1, 1])
-                header_cols[0].write("**তারিখ**")
-                header_cols[1].write("**বিবরণ**")
-                header_cols[2].write("**টাকা**")
-                header_cols[3].write("**অ্যাকশন**")
-                st.divider()
-
-                for _, row in filtered.iloc[::-1].iterrows():
-                    cols = st.columns([2, 3, 2, 1, 1])
-                    cols[0].write(row['Date'])
-                    cols[1].write(row['Description'])
-                    cols[2].write(f"{row['Amount']} ৳")
-                    
-                    # ডিলিট বাটন (এডিট অপশন হিসেবে বর্তমান ডাটা ডিলিট করে নতুন এন্ট্রি দেওয়া সহজ)
-                    if cols[3].button("🗑️", key=f"del_{row['Description']}"):
-                        delete_row(row['Description'])
+                # আসল টেবিল ফরম্যাট (Dataframe)
+                display_df = filtered[['Date', 'Description', 'Amount']].iloc[::-1].copy()
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
                 
-                # টোটাল যোগফল
-                total = filtered['Amount'].sum()
-                st.markdown(f'<div class="total-box">মোট {categories[i]}: {total} টাকা</div>', unsafe_allow_html=True)
+                # টেবিলের নিচে টোটাল
+                total_val = filtered['Amount'].sum()
+                st.markdown(f'<div class="total-summary">মোট {cats[i]}: {total_val} টাকা</div>', unsafe_allow_html=True)
+                
+                # ডিলিট করার জন্য আলাদা সেকশন (টেবিলের নিচেই ডিলিট বাটন)
+                with st.expander("🗑️ লেনদেন ডিলিট করতে ক্লিক করুন"):
+                    for idx, row in filtered.iterrows():
+                        col1, col2 = st.columns([4, 1])
+                        col1.write(f"{row['Date']} - {row['Description']} ({row['Amount']}৳)")
+                        if col2.button("🗑️", key=f"del_{cats[i]}_{idx}"):
+                            requests.delete(f"{API_URL}/Description/{row['Description']}")
+                            st.cache_data.clear()
+                            st.rerun()
             else:
-                st.info(f"এই মুহূর্তে কোনো {categories[i]} রেকর্ড নেই।")
+                st.info(f"এই মুহূর্তে কোনো {cats[i]} রেকর্ড নেই।")
 
     if st.sidebar.button("লগআউট"):
         st.session_state["logged_in"] = False
