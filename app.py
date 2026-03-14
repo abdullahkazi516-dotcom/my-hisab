@@ -4,26 +4,20 @@ from datetime import datetime
 import requests
 import json
 
-# ১. পেজ সেটিংস ও ডিজাইন (Custom CSS)
+# ১. পেজ সেটিংস ও রঙিন ডিজাইনের জন্য CSS
 st.set_page_config(page_title="ডিজিটাল ক্যাশ বুক", page_icon="💰", layout="wide")
 
 st.markdown("""
     <style>
-    /* ফর্মের ব্যাকগ্রাউন্ড ডিজাইন */
-    .stForm {
-        background-color: #f9f9f9;
-        padding: 20px;
-        border-radius: 15px;
-        border: 1px solid #ddd;
-    }
-    /* রঙিন বর্ডার কার্ড ডিজাইন */
-    .record-card {
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-        background-color: white;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-    }
+    /* ইনপুট ফিল্ডের বর্ডার ও রঙিন স্টাইল */
+    div[data-baseweb="input"] { border: 2px solid #4A90E2 !important; border-radius: 10px !important; }
+    div[data-baseweb="select"] { border: 2px solid #F5A623 !important; border-radius: 10px !important; }
+    
+    /* লেবেল বা নামগুলোর কালার */
+    label { color: #2C3E50 !important; font-weight: bold !important; font-size: 18px !important; }
+
+    /* রঙিন কার্ড ডিজাইন */
+    .record-card { padding: 15px; border-radius: 10px; margin-bottom: 10px; background-color: white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
     .income-b { border-left: 8px solid #28a745; }
     .expense-b { border-left: 8px solid #dc3545; }
     .due-b { border-left: 8px solid #ffc107; }
@@ -33,7 +27,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
-DEFAULT_PW = "427054"
+DEFAULT_PW = "427054" # আপনার পাসওয়ার্ড
 
 # ২. ডাটা ফেচিং
 @st.cache_data(ttl=5)
@@ -59,35 +53,45 @@ if not st.session_state["logged_in"]:
             st.session_state["logged_in"] = True
             st.rerun()
         else:
-            st.error("ভুল পাসওয়ার্ড!") #
+            st.error("ভুল পাসওয়ার্ড!")
 else:
     st.title("💰 আমার ডিজিটাল ক্যাশ বুক")
     df = get_data()
 
-    # ড্যাশবোর্ড সামারি
+    # ৪. ব্যালেন্স হাইড/শো অপশন
     if not df.empty:
         ti = df[df['Category'] == 'আয়']['Amount'].sum()
         te = df[df['Category'] == 'ব্যয়']['Amount'].sum()
-        st.info(f"💵 বর্তমান নগদ জমা: {ti - te} টাকা")
+        balance = ti - te
+        
+        with st.expander("👁️ বর্তমান জমা টাকা দেখতে টাচ করুন"):
+            st.markdown(f"<h2 style='text-align:center; color:#28a745;'>💵 মোট জমা: {balance} টাকা</h2>", unsafe_allow_html=True)
 
-    # ৪. ডাটা এন্ট্রি ফর্ম (সবসময় খোলা থাকবে)
+    # ৫. রঙিন ডাটা এন্ট্রি ফর্ম
     st.subheader("➕ নতুন লেনদেন যোগ করুন")
     with st.form("main_form", clear_on_submit=True):
-        date = st.date_input("তারিখ", datetime.now())
-        cat = st.selectbox("ধরণ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
-        desc = st.text_input("বিবরণ")
-        amt = st.number_input("টাকা", min_value=0)
+        st.markdown("<p style='color:#4A90E2;'>📅 তারিখ নির্বাচন করুন</p>", unsafe_allow_html=True)
+        date = st.date_input("", datetime.now())
+        
+        st.markdown("<p style='color:#F5A623;'>📂 লেনদেনের ধরণ</p>", unsafe_allow_html=True)
+        cat = st.selectbox("", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
+        
+        st.markdown("<p style='color:#4A90E2;'>📝 বিবরণ লিখুন</p>", unsafe_allow_html=True)
+        desc = st.text_input("", placeholder="যেমন: দোকানের বাকি")
+        
+        st.markdown("<p style='color:#28a745;'>💰 টাকার পরিমাণ</p>", unsafe_allow_html=True)
+        amt = st.number_input("", min_value=0)
         
         if st.form_submit_button("Submit"):
             if desc:
                 new_entry = {"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}
                 requests.post(API_URL, json={"data": [new_entry]})
                 st.cache_data.clear()
-                st.success("লেনদেনটি সফলভাবে সেভ হয়েছে!")
+                st.success("সেভ হয়েছে!")
                 st.rerun()
 
-    # ৫. বিভাগ অনুযায়ী রঙিন বর্ডার তালিকা (Tabs)
-    st.subheader("📊 হিসাবের তালিকা (বিভাগ অনুযায়ী)")
+    # ৬. বিভাগ অনুযায়ী রঙিন বর্ডার তালিকা
+    st.subheader("📊 হিসাবের তালিকা")
     tabs = st.tabs(["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
     
     config = {
