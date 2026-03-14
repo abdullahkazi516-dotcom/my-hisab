@@ -13,6 +13,7 @@ def init_db():
     return conn
 
 conn = init_db()
+ই
 c = conn.cursor()
 
 # ২. অ্যাপের ইন্টারফেস
