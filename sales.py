@@ -5,103 +5,106 @@ from datetime import datetime
 
 # ১. ডাটাবেস সেটআপ
 def init_db():
-    conn = sqlite3.connect('business_inventory.db')
+    conn = sqlite3.connect('business_pro.db')
     c = conn.cursor()
-    # দোকান টেবিল
-    c.execute('''CREATE TABLE IF NOT EXISTS shops 
-                 (shop_name TEXT PRIMARY KEY, route TEXT)''')
-    # প্রোডাক্ট টেবিল (নতুন)
-    c.execute('''CREATE TABLE IF NOT EXISTS products 
-                 (p_name TEXT PRIMARY KEY, p_price REAL)''')
-    # অর্ডার টেবিল
+    c.execute('''CREATE TABLE IF NOT EXISTS shops (shop_name TEXT PRIMARY KEY, route TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS products (p_name TEXT PRIMARY KEY, p_price REAL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS orders 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_name TEXT, item_name TEXT, 
-                  quantity REAL, total_price REAL, date TEXT)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT, shop_name TEXT, 
+                  product_name TEXT, qty REAL, price REAL, total REAL, date TEXT)''')
     conn.commit()
     return conn
 
 conn = init_db()
 c = conn.cursor()
 
-st.sidebar.title("মেনু কার্ড")
-menu = ["অর্ডার এন্ট্রি", "প্রোডাক্ট যোগ করুন", "নতুন দোকান যোগ", "রিপোর্ট/লিস্ট"]
-choice = st.sidebar.selectbox("অপশন বেছে নিন", menu)
+# সাইডবার মেনু
+menu = ["অর্ডার এন্ট্রি (মাল্টি SKU)", "প্রোডাক্ট যোগ করুন", "নতুন দোকান যোগ", "অর্ডার রিপোর্ট"]
+choice = st.sidebar.selectbox("মেনু", menu)
 
-# --- প্রোডাক্ট যোগ করার অংশ ---
+# --- প্রোডাক্ট ও দোকান যোগ করার অংশ (সংক্ষিপ্ত রাখা হয়েছে) ---
 if choice == "প্রোডাক্ট যোগ করুন":
-    st.subheader("নতুন পণ্য তালিকাভুক্ত করুন")
-    with st.form("product_form"):
-        p_name = st.text_input("পণ্যের নাম *")
-        p_price = st.number_input("পাইকারি মূল্য (প্রতি ইউনিট)", min_value=0.0)
-        if st.form_submit_button("পণ্য সেভ করুন"):
-            if p_name:
-                try:
-                    c.execute("INSERT INTO products VALUES (?,?)", (p_name, p_price))
-                    conn.commit()
-                    st.success(f"✅ {p_name} লিস্টে যোগ হয়েছে!")
-                except:
-                    st.error("এই পণ্যটি অলরেডি লিস্টে আছে।")
+    p_name = st.text_input("পণ্যের নাম")
+    p_price = st.number_input("দাম", min_value=0.0)
+    if st.button("সেভ পণ্য"):
+        c.execute("INSERT OR IGNORE INTO products VALUES (?,?)", (p_name, p_price))
+        conn.commit()
+        st.success("পণ্য যোগ হয়েছে")
 
-# --- নতুন দোকান যোগ ---
 elif choice == "নতুন দোকান যোগ":
-    st.subheader("নতুন দোকান যোগ করুন")
-    with st.form("shop_form"):
-        s_name = st.text_input("দোকানের নাম *")
-        s_route = st.text_input("রুট/এলাকা")
-        if st.form_submit_button("দোকান সেভ করুন"):
-            if s_name:
-                try:
-                    c.execute("INSERT INTO shops VALUES (?,?)", (s_name, s_route))
-                    conn.commit()
-                    st.success("✅ দোকান সফলভাবে সেভ হয়েছে!")
-                except:
-                    st.error("এই নামের দোকান আগে থেকেই আছে।")
+    s_name = st.text_input("দোকানের নাম")
+    if st.button("সেভ দোকান"):
+        c.execute("INSERT OR IGNORE INTO shops VALUES (?,?)", (s_name, ""))
+        conn.commit()
+        st.success("দোকান যোগ হয়েছে")
 
-# --- অর্ডার এন্ট্রি (আপডেটেড) ---
-elif choice == "অর্ডার এন্ট্রি":
-    st.subheader("অর্ডার নিন")
+# --- মাল্টি SKU অর্ডার এন্ট্রি (প্রধান অংশ) ---
+elif choice == "অর্ডার এন্ট্রি (মাল্টি SKU)":
+    st.subheader("🛒 নতুন অর্ডার লিস্ট তৈরি করুন")
     
-    # ডাটাবেস থেকে দোকান ও প্রোডাক্টের লিস্ট আনা
     shops = pd.read_sql_query("SELECT shop_name FROM shops", conn)['shop_name'].tolist()
     products_df = pd.read_sql_query("SELECT * FROM products", conn)
-    product_list = products_df['p_name'].tolist()
     
-    if not shops or not product_list:
-        st.warning("আগে 'দোকান' এবং 'প্রোডাক্ট' যোগ করে নিন।")
+    if not shops or products_df.empty:
+        st.warning("আগে দোকান এবং প্রোডাক্ট যোগ করুন।")
     else:
-        with st.form("order_form"):
-            selected_shop = st.selectbox("দোকান বেছে নিন", shops)
-            selected_product = st.selectbox("পণ্য বেছে নিন", product_list)
+        # ১. দোকান ও তারিখ নির্বাচন
+        col1, col2 = st.columns(2)
+        selected_shop = col1.selectbox("দোকান বেছে নিন", shops)
+        order_date = col2.date_input("অর্ডারের তারিখ", datetime.now())
+        
+        # সেশন স্টেট ব্যবহার করে আইটেম লিস্ট ধরে রাখা
+        if 'cart' not in st.session_state:
+            st.session_state.cart = []
+
+        # ২. প্রোডাক্ট যোগ করার সেকশন
+        st.write("---")
+        c1, c2, c3 = st.columns([3, 1, 1])
+        item = c1.selectbox("পণ্য সিলেক্ট করুন", products_df['p_name'].tolist())
+        qty = c2.number_input("পরিমাণ", min_value=1.0, step=1.0)
+        
+        # সিলেক্ট করা আইটেমের দাম বের করা
+        u_price = products_df[products_df['p_name'] == item]['p_price'].values[0]
+        
+        if st.button("কার্টে যোগ করুন ➕"):
+            st.session_state.cart.append({
+                'পণ্য': item,
+                'পরিমাণ': qty,
+                'দর': u_price,
+                'মোট': qty * u_price
+            })
+
+        # ৩. কার্ট বা অর্ডার লিস্ট দেখানো
+        if st.session_state.cart:
+            st.write("### বর্তমান অর্ডার লিস্ট:")
+            cart_df = pd.DataFrame(st.session_state.cart)
+            st.table(cart_df)
             
-            # সিলেক্ট করা প্রোডাক্টের দাম খুঁজে বের করা
-            unit_price = products_df[products_df['p_name'] == selected_product]['p_price'].values[0]
-            st.info(f"এই পণ্যের দাম: {unit_price} টাকা")
+            grand_total = cart_df['মোট'].sum()
+            st.write(f"**সর্বমোট বিল: {grand_total} টাকা**")
             
-            qty = st.number_input("পরিমাণ (Quantity)", min_value=1.0, step=1.0)
-            date = st.date_input("তারিখ", datetime.now())
-            
-            if st.form_submit_button("অর্ডার কনফার্ম"):
-                total = unit_price * qty
-                c.execute("INSERT INTO orders (shop_name, item_name, quantity, total_price, date) VALUES (?,?,?,?,?)",
-                          (selected_shop, selected_product, qty, total, str(date)))
+            col_save, col_clear = st.columns(2)
+            if col_save.button("অর্ডার কনফার্ম করুন ✅"):
+                import uuid
+                o_id = str(uuid.uuid4())[:8] # ইউনিক অর্ডার আইডি
+                for row in st.session_state.cart:
+                    c.execute("INSERT INTO orders (order_id, shop_name, product_name, qty, price, total, date) VALUES (?,?,?,?,?,?,?)",
+                              (o_id, selected_shop, row['পণ্য'], row['পরিমাণ'], row['দর'], row['মোট'], str(order_date)))
                 conn.commit()
-                st.success(f"✅ {total} টাকার অর্ডার সেভ হয়েছে!")
+                st.session_state.cart = [] # কার্ট খালি করা
+                st.success("অর্ডার সফলভাবে ডাটাবেসে সেভ হয়েছে!")
+            
+            if col_clear.button("লিস্ট মুছুন ❌"):
+                st.session_state.cart = []
+                st.rerun()
 
 # --- রিপোর্ট দেখার অংশ ---
-elif choice == "রিপোর্ট/লিস্ট":
-    tab1, tab2, tab3 = st.tabs(["অর্ডার হিস্ট্রি", "পণ্য তালিকা", "দোকান তালিকা"])
-    
-    with tab1:
-        orders = pd.read_sql_query("SELECT * FROM orders", conn)
-        st.dataframe(orders)
-        st.write(f"**সর্বমোট বিক্রি: {orders['total_price'].sum()} টাকা**")
-    
-    with tab2:
-        prods = pd.read_sql_query("SELECT * FROM products", conn)
-        st.table(prods)
-        
-    with tab3:
-        shps = pd.read_sql_query("SELECT * FROM shops", conn)
-        st.table(shps)
+elif choice == "অর্ডার রিপোর্ট":
+    st.subheader("📋 সব অর্ডারের তালিকা")
+    report_df = pd.read_sql_query("SELECT date, order_id, shop_name, product_name, qty, total FROM orders", conn)
+    if not report_df.empty:
+        st.dataframe(report_df)
+    else:
+        st.info("কোনো অর্ডার পাওয়া যায়নি।")
 
 conn.close()
