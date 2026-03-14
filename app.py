@@ -4,30 +4,38 @@ from datetime import datetime
 import requests
 import json
 
-# ১. পেজ সেটিংস ও রঙিন ডিজাইনের জন্য CSS
+# ১. পেজ সেটিংস ও রঙিন ডিজাইনের CSS
 st.set_page_config(page_title="ডিজিটাল ক্যাশ বুক", page_icon="💰", layout="wide")
 
 st.markdown("""
     <style>
-    /* ইনপুট ফিল্ডের বর্ডার ও রঙিন স্টাইল */
+    /* ইনপুট ফিল্ডের রঙিন বর্ডার */
     div[data-baseweb="input"] { border: 2px solid #4A90E2 !important; border-radius: 10px !important; }
     div[data-baseweb="select"] { border: 2px solid #F5A623 !important; border-radius: 10px !important; }
     
-    /* লেবেল বা নামগুলোর কালার */
-    label { color: #2C3E50 !important; font-weight: bold !important; font-size: 18px !important; }
+    /* লেবেল কালার */
+    label { color: #2C3E50 !important; font-weight: bold !important; font-size: 16px !important; }
 
-    /* রঙিন কার্ড ডিজাইন */
-    .record-card { padding: 15px; border-radius: 10px; margin-bottom: 10px; background-color: white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
-    .income-b { border-left: 8px solid #28a745; }
-    .expense-b { border-left: 8px solid #dc3545; }
-    .due-b { border-left: 8px solid #ffc107; }
-    .dena-b { border-left: 8px solid #fd7e14; }
-    .powna-b { border-left: 8px solid #17a2b8; }
+    /* টেবিল স্টাইল */
+    .stTable { border-radius: 10px; overflow: hidden; }
+    
+    /* টোটাল রো হাইলাইট */
+    .total-box {
+        background-color: #f1f3f4;
+        padding: 10px;
+        border-radius: 5px;
+        text-align: right;
+        font-weight: bold;
+        font-size: 18px;
+        color: #333;
+        border-top: 2px solid #ddd;
+        margin-top: -15px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
-DEFAULT_PW = "427054" # আপনার পাসওয়ার্ড
+DEFAULT_PW = "427054"
 
 # ২. ডাটা ফেচিং
 @st.cache_data(ttl=5)
@@ -70,17 +78,17 @@ else:
     # ৫. রঙিন ডাটা এন্ট্রি ফর্ম
     st.subheader("➕ নতুন লেনদেন যোগ করুন")
     with st.form("main_form", clear_on_submit=True):
-        st.markdown("<p style='color:#4A90E2;'>📅 তারিখ নির্বাচন করুন</p>", unsafe_allow_html=True)
-        date = st.date_input("", datetime.now())
-        
-        st.markdown("<p style='color:#F5A623;'>📂 লেনদেনের ধরণ</p>", unsafe_allow_html=True)
-        cat = st.selectbox("", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
-        
-        st.markdown("<p style='color:#4A90E2;'>📝 বিবরণ লিখুন</p>", unsafe_allow_html=True)
-        desc = st.text_input("", placeholder="যেমন: দোকানের বাকি")
-        
-        st.markdown("<p style='color:#28a745;'>💰 টাকার পরিমাণ</p>", unsafe_allow_html=True)
-        amt = st.number_input("", min_value=0)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("<p style='color:#4A90E2; margin-bottom:0;'>📅 তারিখ</p>", unsafe_allow_html=True)
+            date = st.date_input("", datetime.now())
+            st.markdown("<p style='color:#F5A623; margin-bottom:0;'>📂 ধরণ</p>", unsafe_allow_html=True)
+            cat = st.selectbox("", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
+        with c2:
+            st.markdown("<p style='color:#4A90E2; margin-bottom:0;'>📝 বিবরণ</p>", unsafe_allow_html=True)
+            desc = st.text_input("", placeholder="যেমন: দোকানের বাকি")
+            st.markdown("<p style='color:#28a745; margin-bottom:0;'>💰 টাকা</p>", unsafe_allow_html=True)
+            amt = st.number_input("", min_value=0)
         
         if st.form_submit_button("Submit"):
             if desc:
@@ -90,30 +98,24 @@ else:
                 st.success("সেভ হয়েছে!")
                 st.rerun()
 
-    # ৬. বিভাগ অনুযায়ী রঙিন বর্ডার তালিকা
-    st.subheader("📊 হিসাবের তালিকা")
+    # ৬. বিভাগ অনুযায়ী টেবিল এবং টোটাল যোগফল
+    st.subheader("📊 হিসাবের তালিকা (বিভাগ অনুযায়ী)")
     tabs = st.tabs(["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"])
-    
-    config = {
-        "আয়": ("income-b", tabs[0]),
-        "ব্যয়": ("expense-b", tabs[1]),
-        "বকেয়া": ("due-b", tabs[2]),
-        "দেনা": ("dena-b", tabs[3]),
-        "পাওনা": ("powna-b", tabs[4])
-    }
+    categories = ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"]
 
-    for category, (border_class, tab_obj) in config.items():
-        with tab_obj:
-            filtered = df[df['Category'] == category]
+    for i, tab in enumerate(tabs):
+        with tab:
+            filtered = df[df['Category'] == categories[i]]
             if not filtered.empty:
-                for _, row in filtered.iloc[::-1].iterrows():
-                    st.markdown(f"""
-                        <div class="record-card {border_class}">
-                            <b>📅 {row['Date']}</b> | {row['Description']} | <b>💰 {row['Amount']} টাকা</b>
-                        </div>
-                    """, unsafe_allow_html=True)
+                # টেবিল আকারে প্রদর্শন
+                display_df = filtered[['Date', 'Description', 'Amount']].iloc[::-1].copy()
+                st.table(display_df)
+                
+                # টোটাল যোগফল দেখানো
+                total_amt = filtered['Amount'].sum()
+                st.markdown(f'<div class="total-box">মোট {categories[i]}: {total_amt} টাকা</div>', unsafe_allow_html=True)
             else:
-                st.write(f"এই মুহূর্তে কোনো {category} রেকর্ড নেই।")
+                st.info(f"এই মুহূর্তে কোনো {categories[i]} রেকর্ড নেই।")
 
     if st.sidebar.button("লগআউট"):
         st.session_state["logged_in"] = False
