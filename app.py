@@ -4,103 +4,53 @@ from datetime import datetime
 import requests
 
 # ১. পেজ সেটিংস ও ডিজাইন
-st.set_page_config(page_title="ডিজিটাল ক্যাশ বুক", page_icon="💰", layout="wide")
+st.set_page_config(page_title="পার্সোনাল ড্যাশবোর্ড", layout="wide")
 
 st.markdown("""
     <style>
-    div[data-baseweb="input"] { border: 2px solid #4A90E2 !important; border-radius: 10px !important; }
-    div[data-baseweb="select"] { border: 2px solid #F5A623 !important; border-radius: 10px !important; }
-    .total-summary {
-        background-color: #e8f0fe; padding: 15px; border-radius: 10px;
-        text-align: right; font-weight: bold; font-size: 20px;
-        color: #1967d2; border: 1px solid #4A90E2; margin-top: 10px;
-    }
+    .total-summary { background-color: #f1f3f4; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 18px; color: #1967d2; margin: 10px 0; }
+    .exp-card-good { border-left: 5px solid #28a745; background-color: #f8fff9; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+    .exp-card-bad { border-left: 5px solid #dc3545; background-color: #fff8f8; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+    .plan-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #ffffff; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
+# আপনার API লিঙ্ক
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
-DEFAULT_PW = "427054"
 
-# ২. ডাটা ফেচিং ফাংশন (উন্নত হ্যান্ডলিং)
+# ২. ডাটা লোড করার ফাংশন
 @st.cache_data(ttl=5)
-def get_data():
+def get_data(sheet_name="Sheet1"):
     try:
-        res = requests.get(API_URL, timeout=5)
-        data = res.json()
-        if isinstance(data, list) and len(data) > 0:
-            df = pd.DataFrame(data)
-            df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
-            return df
-        else:
-            return pd.DataFrame(columns=["Date", "Description", "Category", "Amount"])
+        res = requests.get(f"{API_URL}?sheet={sheet_name}")
+        return pd.DataFrame(res.json())
     except:
-        return pd.DataFrame(columns=["Date", "Description", "Category", "Amount"])
+        return pd.DataFrame()
 
-# ৩. সেশন স্টেট ইনিশিয়ালাইজেশন (এরর এড়ানোর প্রধান সমাধান)
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "edit_data" not in st.session_state:
-    st.session_state.edit_data = None
+# ৩. মেইন ট্যাব সিস্টেম
+tab_hishab, tab_plan, tab_exp = st.tabs(["💰 লেনদেন হিসাব", "🗓️ কর্ম পরিকল্পনা", "🌟 আজকের অভিজ্ঞতা"])
 
-# ৪. লগইন সিস্টেম
-if not st.session_state["logged_in"]:
-    st.title("🔐 লগইন করুন")
-    pw = st.text_input("পাসওয়ার্ড দিন", type="password")
-    if st.button("প্রবেশ করুন"):
-        if pw == DEFAULT_PW:
-            st.session_state["logged_in"] = True
-            st.rerun()
-        else: 
-            st.error("ভুল পাসওয়ার্ড!")
-else:
-    st.title("💰 আমার ডিজিটাল ক্যাশ বুক")
-    df = get_data()
-
-    # ব্যালেন্স সামারি (যদি ডাটা থাকে)
-    if not df.empty:
-        ti = df[df['Category'] == 'আয়']['Amount'].sum()
-        te = df[df['Category'] == 'ব্যয়']['Amount'].sum()
-        with st.expander("👁️ বর্তমান জমা টাকা দেখতে টাচ করুন"):
-            st.info(f"### মোট নগদ জমা: {ti - te} টাকা")
-
-    # ৫. লেনদেন যোগ/এডিট সেকশন
-    st.subheader("➕ লেনদেন যোগ/এডিট করুন")
+# --- ট্যাব ১: লেনদেন হিসাব (আপনার কোড অনুযায়ী) ---
+with tab_hishab:
+    df = get_data("Sheet1")
+    st.subheader("📝 নতুন লেনদেন এন্ট্রি")
     
-    default_date = datetime.now()
-    default_cat = "আয়"
-    default_desc = ""
-    default_amt = 0
-
-    # এডিট মোড চেক
-    if st.session_state.edit_data is not None:
-        try:
-            ed = st.session_state.edit_data
-            default_date = datetime.strptime(str(ed['Date']), '%Y-%m-%d')
-            default_cat = ed['Category']
-            default_desc = ed['Description']
-            default_amt = int(float(ed['Amount']))
-            st.warning(f"আপনি এখন '{default_desc}' লেনদেনটি এডিট করছেন।")
-        except:
-            st.session_state.edit_data = None
-
-    with st.form("entry_form", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        date = c1.date_input("📅 তারিখ", default_date)
-        cats_list = ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"]
-        cat = c1.selectbox("📂 ধরণ", cats_list, index=cats_list.index(default_cat))
-        desc = c2.text_input("📝 বিবরণ", value=default_desc)
-        amt = c2.number_input("💰 টাকা", min_value=0, value=default_amt)
+    edit_mode = st.session_state.get('edit_data')
+    
+    with st.form("hishab_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        date = col1.date_input("তারিখ", datetime.now() if not edit_mode else pd.to_datetime(edit_mode['Date']))
+        cat = col2.selectbox("বিভাগ", ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"], index=0 if not edit_mode else ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"].index(edit_mode['Category']))
+        desc = st.text_input("বিবরণ", value="" if not edit_mode else edit_mode['Description'])
+        amt = st.number_input("পরিমাণ (টাকা)", min_value=0, value=0 if not edit_mode else int(edit_mode['Amount']))
         
-        btn_label = "হালনাগাদ করুন" if st.session_state.edit_data is not None else "সংরক্ষণ করুন"
-        
-        if st.form_submit_button(btn_label):
+        if st.form_submit_button("সংরক্ষণ করুন"):
             if desc:
-                # এডিট মোডে থাকলে আগের ডাটা মুছে ফেলা
-                if st.session_state.edit_data is not None:
-                    requests.delete(f"{API_URL}/Description/{st.session_state.edit_data['Description']}")
+                if edit_mode:
+                    requests.delete(f"{API_URL}/Description/{edit_mode['Description']}?sheet=Sheet1")
                 
                 new_entry = {"Date": str(date), "Description": desc, "Category": cat, "Amount": amt}
-                requests.post(API_URL, json={"data": [new_entry]})
+                requests.post(f"{API_URL}?sheet=Sheet1", json={"data": [new_entry]})
                 st.session_state.edit_data = None
                 st.cache_data.clear()
                 st.success("সফলভাবে সম্পন্ন হয়েছে!")
@@ -108,36 +58,73 @@ else:
             else:
                 st.error("বিবরণ দিন!")
 
-    # ৬. বিভাগ অনুযায়ী ট্যাব ও টেবিল
     st.subheader("📊 বিভাগ অনুযায়ী লেনদেনের তালিকা")
     cats = ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"]
-    tabs = st.tabs(cats)
-
-    for i, tab in enumerate(tabs):
-        with tab:
-            filtered = df[df['Category'] == cats[i]] if not df.empty else pd.DataFrame()
+    h_tabs = st.tabs(cats)
+    for i, h_tab in enumerate(h_tabs):
+        with h_tab:
+            filtered = df[df['Category'] == cats[i]] if not df.empty and 'Category' in df.columns else pd.DataFrame()
             if not filtered.empty:
                 st.dataframe(filtered[['Date', 'Description', 'Amount']].iloc[::-1], use_container_width=True, hide_index=True)
-                
-                total_val = filtered['Amount'].sum()
+                total_val = pd.to_numeric(filtered['Amount']).sum()
                 st.markdown(f'<div class="total-summary">মোট {cats[i]}: {total_val} টাকা</div>', unsafe_allow_html=True)
                 
                 with st.expander("📝 এডিট বা 🗑️ ডিলিট করতে ক্লিক করুন"):
                     for idx, row in filtered.iterrows():
-                        col1, col2, col3 = st.columns([3, 1, 1])
-                        col1.write(f"{row['Date']} - {row['Description']} ({row['Amount']}৳)")
-                        
-                        if col2.button("📝", key=f"edit_{cats[i]}_{idx}"):
+                        c1, c2, c3 = st.columns([3, 1, 1])
+                        c1.write(f"{row['Date']} - {row['Description']} ({row['Amount']}৳)")
+                        if c2.button("📝", key=f"ed_h_{idx}"):
                             st.session_state.edit_data = row
                             st.rerun()
-                            
-                        if col3.button("🗑️", key=f"del_{cats[i]}_{idx}"):
-                            requests.delete(f"{API_URL}/Description/{row['Description']}")
-                            st.cache_data.clear()
-                            st.rerun()
-            else:
-                st.info(f"এই মুহূর্তে কোনো {cats[i]} রেকর্ড নেই।")
+                        if c3.button("🗑️", key=f"del_h_{idx}"):
+                            requests.delete(f"{API_URL}/Description/{row['Description']}?sheet=Sheet1")
+                            st.cache_data.clear(); st.rerun()
 
-    if st.sidebar.button("লগআউট"):
-        st.session_state["logged_in"] = False
-        st.rerun()
+# --- ট্যাব ২: কর্ম পরিকল্পনা (Plan) ---
+with tab_plan:
+    st.subheader("🗓️ ভবিষ্যৎ পরিকল্পনার তালিকা")
+    with st.form("plan_form", clear_on_submit=True):
+        p_date = st.date_input("পরিকল্পনার তারিখ", datetime.now())
+        p_task = st.text_area("কি কাজ করতে চান?")
+        if st.form_submit_button("প্ল্যান সেভ করুন"):
+            if p_task:
+                # ইউনিক আইডি জেনারেট করা ডিলিট করার জন্য
+                p_id = str(datetime.now().timestamp()).replace(".", "")
+                requests.post(f"{API_URL}?sheet=Plans", json={"data": [{"id": p_id, "Date": str(p_date), "Task": p_task}]})
+                st.cache_data.clear(); st.success("প্ল্যান সেভ হয়েছে!"); st.rerun()
+
+    plans_df = get_data("Plans")
+    if not plans_df.empty:
+        for i, row in plans_df.iloc[::-1].iterrows():
+            st.markdown(f"""<div class="plan-card"><b>তারিখ: {row['Date']}</b><br>{row['Task']}</div>""", unsafe_allow_html=True)
+            if st.button("🗑️ ডিলিট করুন", key=f"p_del_{i}"):
+                requests.delete(f"{API_URL}/id/{row['id']}?sheet=Plans")
+                st.cache_data.clear(); st.rerun()
+
+# --- ট্যাব ৩: আজকের অভিজ্ঞতা (Experience) ---
+with tab_exp:
+    st.subheader("🌟 আজকের ভালো ও খারাপ অভিজ্ঞতা")
+    with st.form("exp_form", clear_on_submit=True):
+        e_date = st.date_input("অভিজ্ঞতার তারিখ", datetime.now())
+        good_exp = st.text_area("কি ভালো হয়েছে? 😊")
+        bad_exp = st.text_area("কি খারাপ হয়েছে? ☹️")
+        if st.form_submit_button("অভিজ্ঞতা সেভ করুন"):
+            e_id = str(datetime.now().timestamp()).replace(".", "")
+            requests.post(f"{API_URL}?sheet=Experiences", json={"data": [{"id": e_id, "Date": str(e_date), "Good": good_exp, "Bad": bad_exp}]})
+            st.cache_data.clear(); st.success("অভিজ্ঞতা সেভ হয়েছে!"); st.rerun()
+
+    exp_df = get_data("Experiences")
+    if not exp_df.empty:
+        for i, row in exp_df.iloc[::-1].iterrows():
+            st.write(f"### 📅 তারিখ: {row['Date']}")
+            st.markdown(f'<div class="exp-card-good"><b>ভালো অভিজ্ঞতা:</b><br>{row["Good"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="exp-card-bad"><b>খারাপ অভিজ্ঞতা:</b><br>{row["Bad"]}</div>', unsafe_allow_html=True)
+            if st.button("🗑️ মুছে ফেলুন", key=f"e_del_{i}"):
+                requests.delete(f"{API_URL}/id/{row['id']}?sheet=Experiences")
+                st.cache_data.clear(); st.rerun()
+            st.divider()
+
+# সাইডবার
+if st.sidebar.button("লগআউট"):
+    st.session_state["logged_in"] = False
+    st.rerun()
