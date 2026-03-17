@@ -26,7 +26,7 @@ if not st.session_state["logged_in"]:
     st.subheader("🔐 লগইন করুন")
     password = st.text_input("পাসওয়ার্ড দিন", type="password")
     if st.button("প্রবেশ করুন"):
-        if password == "1234": # এখানে আপনার ইচ্ছেমতো পাসওয়ার্ড দিন
+        if password == "427054": # এখানে আপনার ইচ্ছেমতো পাসওয়ার্ড দিন
             st.session_state["logged_in"] = True
             st.rerun()
         else:
