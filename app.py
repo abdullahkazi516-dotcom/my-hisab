@@ -8,20 +8,17 @@ st.set_page_config(page_title="স্মার্ট ড্যাশবোর্
 
 st.markdown("""
     <style>
-    /* ক্যাটাগরি অনুযায়ী রঙ */
-    .cat-income { color: #00c853; font-weight: bold; border-left: 5px solid #00c853; padding-left: 10px; }
-    .cat-expense { color: #ff5252; font-weight: bold; border-left: 5px solid #ff5252; padding-left: 10px; }
-    .cat-arrears { color: #ffd600; font-weight: bold; border-left: 5px solid #ffd600; padding-left: 10px; }
-    .cat-debt { color: #ff9100; font-weight: bold; border-left: 5px solid #ff9100; padding-left: 10px; }
-    .cat-receivable { color: #2979ff; font-weight: bold; border-left: 5px solid #2979ff; padding-left: 10px; }
+    /* ক্যাটাগরি অনুযায়ী রঙিন বর্ডার ও টেক্সট */
+    .cat-income { color: #00c853; font-weight: bold; border-left: 5px solid #00c853; padding-left: 10px; margin-bottom: 5px; }
+    .cat-expense { color: #ff5252; font-weight: bold; border-left: 5px solid #ff5252; padding-left: 10px; margin-bottom: 5px; }
+    .cat-arrears { color: #ffd600; font-weight: bold; border-left: 5px solid #ffd600; padding-left: 10px; margin-bottom: 5px; }
+    .cat-debt { color: #ff9100; font-weight: bold; border-left: 5px solid #ff9100; padding-left: 10px; margin-bottom: 5px; }
+    .cat-receivable { color: #2979ff; font-weight: bold; border-left: 5px solid #2979ff; padding-left: 10px; margin-bottom: 5px; }
     
     .call-btn {
         background-color: #00c853; color: white !important; padding: 5px 10px;
         text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 13px;
         display: inline-block; text-align: center; border: 1px solid #00a040;
-    }
-    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        font-size: 18px; font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -29,14 +26,14 @@ st.markdown("""
 # API লিঙ্ক
 API_URL = "https://sheetdb.io/api/v1/7mzpsfz9aa5r7"
 
-# ২. লগইন সিস্টেম
+# ২. লগইন সিস্টেম (পাসওয়ার্ড: 427054)
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
 if not st.session_state["logged_in"]:
     st.subheader("🔐 নিরাপদ প্রবেশ")
-    password = st.text_input("পাসওয়ার্ড দিন", type="password", key="login_pass")
-    if st.button("লগইন", key="login_btn"):
+    password = st.text_input("পাসওয়ার্ড দিন", type="password", key="login_pass_main")
+    if st.button("লগইন", key="login_btn_main"):
         if password == "427054": 
             st.session_state["logged_in"] = True
             st.rerun()
@@ -44,17 +41,17 @@ if not st.session_state["logged_in"]:
             st.error("ভুল পাসওয়ার্ড!")
     st.stop()
 
-# ৩. ডাটা লোড ফাংশন
+# ৩. ডাটা লোড ফাংশন (Date ও Number ফিক্সিং)
 @st.cache_data(ttl=5)
-def get_all_data(sheet_name="Sheet1"):
+def load_data(sheet="Sheet1"):
     try:
-        res = requests.get(f"{API_URL}?sheet={sheet_name}")
+        res = requests.get(f"{API_URL}?sheet={sheet}")
         df = pd.DataFrame(res.json())
         return df.astype(str) if not df.empty else pd.DataFrame()
     except:
         return pd.DataFrame()
 
-df_main = get_all_data("Sheet1")
+df_main = load_data("Sheet1")
 
 # ৪. ট্যাব সিস্টেম
 tab_hishab, tab_plan, tab_exp, tab_phone = st.tabs(["💰 লেনদেন", "🗓️ পরিকল্পনা", "🌟 অভিজ্ঞতা", "📱 ফোনবুক"])
@@ -65,23 +62,22 @@ with tab_hishab:
     edit_data = st.session_state.get('edit_data')
     categories = ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"]
     
-    # ডিফল্ট ভ্যালু সেটআপ (ValueError প্রোটেকশন)
-    d_val = datetime.now()
-    cat_idx, desc_val, amt_val = 0, "", 0
-    
+    # এডিট মোডে এরর প্রোটেকশন
+    d_val, cat_idx, desc_val, amt_val = datetime.now(), 0, "", 0
     if edit_data:
         try:
             d_val = pd.to_datetime(edit_data['Date']).to_pydatetime()
             if edit_data['Category'] in categories: cat_idx = categories.index(edit_data['Category'])
-            desc_val, amt_val = edit_data['Description'], int(float(edit_data['Amount']))
+            desc_val = str(edit_data['Description'])
+            amt_val = int(float(edit_data['Amount']))
         except: pass
 
-    with st.form("hishab_form_color", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        date_in = col1.date_input("তারিখ", d_val, key="h_date")
-        cat_in = col2.selectbox("বিভাগ", categories, index=cat_idx, key="h_cat")
-        desc_in = st.text_input("বিবরণ", value=desc_val, key="h_desc")
-        amt_in = st.number_input("পরিমাণ", min_value=0, value=amt_val, key="h_amt")
+    with st.form("hishab_form_secure", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        date_in = c1.date_input("তারিখ", d_val, key="h_date_input")
+        cat_in = c2.selectbox("বিভাগ", categories, index=cat_idx, key="h_cat_input")
+        desc_in = st.text_input("বিবরণ", value=desc_val, key="h_desc_input")
+        amt_in = st.number_input("পরিমাণ", min_value=0, value=amt_val, key="h_amt_input")
         
         if st.form_submit_button("সেভ করুন"):
             if desc_in:
@@ -91,27 +87,24 @@ with tab_hishab:
                 st.cache_data.clear(); st.rerun()
 
     st.divider()
-    # রঙিন টেবিল ও ডাটা
     if not df_main.empty:
         h_tabs = st.tabs(categories)
-        css_classes = ["cat-income", "cat-expense", "cat-arrears", "cat-debt", "cat-receivable"]
-        
+        style_classes = ["cat-income", "cat-expense", "cat-arrears", "cat-debt", "cat-receivable"]
         for i, h_tab in enumerate(h_tabs):
             with h_tab:
                 sub_df = df_main[df_main['Category'] == categories[i]]
                 if not sub_df.empty:
-                    st.markdown(f'<div class="{css_classes[i]}">{categories[i]} লিস্ট</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="{style_classes[i]}">{categories[i]} তালিকা</div>', unsafe_allow_html=True)
                     st.dataframe(sub_df[['Date', 'Description', 'Amount']].iloc[::-1], use_container_width=True, hide_index=True)
                     total = pd.to_numeric(sub_df['Amount'], errors='coerce').sum()
                     st.info(f"মোট {categories[i]}: {total} ৳")
-                    
-                    with st.expander("এডিট বা ডিলিট"):
+                    with st.expander(f"এডিট/ডিলিট ({categories[i]})"):
                         for idx, row in sub_df.iterrows():
-                            c1, c2, c3 = st.columns([3, 1, 1])
-                            c1.write(f"{row['Date']} - {row['Description']}")
-                            if c2.button("📝", key=f"ed_{idx}_{i}_u"):
+                            col1, col2, col3 = st.columns([3, 1, 1])
+                            col1.write(f"{row['Date']} - {row['Description']}")
+                            if col2.button("📝", key=f"ed_h_{idx}_{i}_uniq"):
                                 st.session_state.edit_data = row; st.rerun()
-                            if c3.button("🗑️", key=f"del_{idx}_{i}_u"):
+                            if col3.button("🗑️", key=f"del_h_{idx}_{i}_uniq"):
                                 requests.delete(f"{API_URL}/Description/{row['Description']}?sheet=Sheet1")
                                 st.cache_data.clear(); st.rerun()
 
@@ -119,11 +112,11 @@ with tab_hishab:
 with tab_phone:
     st.subheader("📱 ফোনবুক")
     edit_ph = st.session_state.get('edit_phone_data')
-    with st.form("ph_form_color", clear_on_submit=True):
-        n_in = st.text_input("নাম", value=edit_ph['Name'] if edit_ph else "", key="ph_name")
-        m_in = st.text_input("মোবাইল", value=edit_ph['Mobile'] if edit_ph else "", key="ph_mob")
-        note_in = st.text_input("নোট", value=edit_ph['Note'] if edit_ph else "", key="ph_note")
-        if st.form_submit_button("সেভ"):
+    with st.form("ph_form_secure", clear_on_submit=True):
+        n_in = st.text_input("নাম", value=edit_ph['Name'] if edit_ph else "", key="ph_name_in")
+        m_in = st.text_input("মোবাইল", value=edit_ph['Mobile'] if edit_ph else "", key="ph_mob_in")
+        note_in = st.text_input("নোট", value=edit_ph['Note'] if edit_ph else "", key="ph_note_in")
+        if st.form_submit_button("নম্বর সেভ"):
             if n_in and m_in:
                 mob = str(m_in).strip()
                 if not mob.startswith('0'): mob = '0' + mob
@@ -133,17 +126,18 @@ with tab_phone:
                 st.session_state.edit_phone_data = None
                 st.cache_data.clear(); st.rerun()
 
-    ph_df = get_all_data("Phonebook")
+    ph_df = load_data("Phonebook")
     if not ph_df.empty:
+        # মোবাইল নম্বরের শুরুতে '0' নিশ্চিত করা
         ph_df['Mobile'] = ph_df['Mobile'].apply(lambda x: '0' + str(x) if (str(x).startswith('1') and len(str(x)) == 10) else str(x))
         for i, row in ph_df.iloc[::-1].iterrows():
             r1, r2, r3 = st.columns([3, 1.5, 2])
-            r1.write(f"👤 {row['Name']}")
+            r1.write(f"👤 {row['Name']} ({row['Note']})")
             r2.markdown(f'<a href="tel:{row["Mobile"]}" class="call-btn">📞 কল</a>', unsafe_allow_html=True)
             with r3:
-                bb1, bb2 = st.columns(2)
-                if bb1.button("📝", key=f"ph_ed_{i}_u"): st.session_state.edit_phone_data = row; st.rerun()
-                if bb2.button("🗑️", key=f"ph_de_{i}_u"):
+                b1, b2 = st.columns(2)
+                if b1.button("📝", key=f"ph_ed_{i}_uniq"): st.session_state.edit_phone_data = row; st.rerun()
+                if b2.button("🗑️", key=f"ph_de_{i}_uniq"):
                     requests.delete(f"{API_URL}/id/{row['id']}?sheet=Phonebook")
                     st.cache_data.clear(); st.rerun()
             st.write("-" * 10)
