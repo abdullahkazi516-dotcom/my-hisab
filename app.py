@@ -3,14 +3,27 @@ import pandas as pd
 from datetime import datetime
 import requests
 
-# ১. পেজ সেটআপ ও ডিজাইন
-st.set_page_config(page_title="আমার স্মার্ট ড্যাশবোর্ড", layout="wide")
+# ১. পেজ সেটআপ ও ডিজাইন (CSS)
+st.set_page_config(page_title="স্মার্ট ড্যাশবোর্ড", layout="wide")
 
 st.markdown("""
     <style>
     .login-box { max-width: 400px; margin: auto; padding: 30px; border-radius: 15px; background-color: #1e1e1e; border: 1px solid #00c853; text-align: center; }
     .balance-card { background: linear-gradient(135deg, #1e1e1e, #252525); padding: 25px; border-radius: 15px; border: 2px solid #00c853; text-align: center; margin-bottom: 20px; }
-    .total-box { padding: 12px; border-radius: 8px; font-weight: bold; background-color: #262730; margin-top: 10px; color: #00c853; border-left: 5px solid #00c853; }
+    
+    /* টোটাল হিসাবের ঘরের নতুন কালার (Blue Background) */
+    .total-summary-box { 
+        padding: 15px; 
+        border-radius: 10px; 
+        font-weight: bold; 
+        background-color: #0d47a1; /* Deep Blue */
+        color: white; 
+        margin-top: 15px; 
+        font-size: 18px;
+        text-align: center;
+        border: 1px solid #1e88e5;
+    }
+    
     .call-btn { background-color: #00c853; color: white !important; padding: 6px 12px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; }
     </style>
     """, unsafe_allow_html=True)
@@ -24,7 +37,7 @@ if "logged_in" not in st.session_state:
 if not st.session_state["logged_in"]:
     st.markdown('<div class="login-box">', unsafe_allow_html=True)
     st.header("🔐 লগইন")
-    pass_input = st.text_input("পাসওয়ার্ড দিন", type="password", key="login_key")
+    pass_input = st.text_input("পাসওয়ার্ড দিন", type="password", key="login_pass_field")
     if st.button("প্রবেশ করুন"):
         if pass_input == "427054":
             st.session_state["logged_in"] = True
@@ -71,30 +84,25 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ৫. ট্যাব সিস্টেম
 t_hishab, t_plan, t_exp, t_phone = st.tabs(["💰 লেনদেন", "🗓️ পরিকল্পনা", "🌟 অভিজ্ঞতা", "📱 ফোনবুক"])
 
-# --- লেনদেন ট্যাব (এডিট ফিক্সসহ) ---
+# --- লেনদেন ট্যাব (এডিট ও কালার ফিক্স) ---
 with t_hishab:
     categories = ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"]
     
-    # এডিট ডাটা লোড (ValueError প্রতিরোধের জন্য Safe Check)
+    # এডিট ডাটা হ্যান্ডলিং
     edit_item = st.session_state.get('edit_item')
     d_v, c_i, ds_v, am_v = datetime.now(), 0, "", 0
     
     if edit_item is not None:
         try:
-            # তারিখ ফরমেট ঠিক করা
             temp_date = str(edit_item.get('Date', ''))
-            if temp_date and temp_date != 'nan':
-                d_v = pd.to_datetime(temp_date).to_pydatetime()
-            # ক্যাটাগরি ও অন্যান্য
+            d_v = pd.to_datetime(temp_date).to_pydatetime() if temp_date != 'nan' else datetime.now()
             ds_v = str(edit_item.get('Description', ''))
             am_v = int(float(edit_item.get('Amount', 0)))
             cat_name = edit_item.get('Category', 'আয়')
-            if cat_name in categories:
-                c_i = categories.index(cat_name)
-        except:
-            d_v, c_i, ds_v, am_v = datetime.now(), 0, "", 0
+            if cat_name in categories: c_i = categories.index(cat_name)
+        except: pass
 
-    with st.form("hishab_form_new", clear_on_submit=True):
+    with st.form("hishab_form_final", clear_on_submit=True):
         col_a, col_b = st.columns(2)
         date_in = col_a.date_input("তারিখ", d_v)
         cat_in = col_b.selectbox("বিভাগ", categories, index=c_i)
@@ -103,12 +111,10 @@ with t_hishab:
         
         if st.form_submit_button("সেভ করুন"):
             if desc_in:
-                # এডিট মোডে থাকলে পুরনোটা ডিলিট করার চেষ্টা (Error skip করা হবে)
+                # এডিট মোডে থাকলে পুরনো ডাটা ডিলিট করা
                 if edit_item:
-                    try:
-                        requests.delete(f"{API_URL}/Description/{edit_item['Description']}?sheet=Sheet1")
-                    except: pass
-                # নতুন ডাটা সেভ
+                    requests.delete(f"{API_URL}/Description/{edit_item['Description']}?sheet=Sheet1")
+                # নতুন বা আপডেট করা ডাটা সেভ
                 requests.post(f"{API_URL}?sheet=Sheet1", json={"data": [{"Date": str(date_in), "Description": desc_in, "Category": cat_in, "Amount": str(amt_in)}]})
                 st.session_state.edit_item = None
                 st.rerun()
@@ -120,36 +126,40 @@ with t_hishab:
                 sub = df_main[df_main['Category'] == categories[i]]
                 if not sub.empty:
                     st.dataframe(sub[['Date', 'Description', 'Amount']].iloc[::-1], use_container_width=True, hide_index=True)
-                    st.markdown(f'<div class="total-box">📊 মোট {categories[i]}: {sub["Amount"].sum()} ৳</div>', unsafe_allow_html=True)
+                    # রঙিন টোটাল বক্স
+                    cat_sum = pd.to_numeric(sub['Amount']).sum()
+                    st.markdown(f'<div class="total-summary-box">📊 মোট {categories[i]} ফল: {cat_sum} ৳</div>', unsafe_allow_html=True)
+                    
                     with st.expander("এডিট বা ডিলিট"):
                         for idx, row in sub.iterrows():
                             c1, c2, c3 = st.columns([3, 1, 1])
                             c1.write(f"{row['Description']} - {row['Amount']}৳")
-                            if c2.button("📝", key=f"e_{idx}_{i}"):
+                            if c2.button("📝 এডিট", key=f"e_btn_{idx}_{i}"):
                                 st.session_state.edit_item = row
                                 st.rerun()
-                            if c3.button("🗑️", key=f"d_{idx}_{i}"):
+                            if c3.button("🗑️", key=f"d_btn_{idx}_{i}"):
                                 requests.delete(f"{API_URL}/Description/{row['Description']}?sheet=Sheet1")
                                 st.rerun()
 
-# --- পরিকল্পনা ও অভিজ্ঞতা ট্যাব (Data loading fix) ---
+# --- অন্যান্য ট্যাব (পরিকল্পনা, অভিজ্ঞতা, ফোনবুক) ফিক্স ---
 with t_plan:
     st.subheader("🗓️ পরিকল্পনা")
-    plan_text = st.text_area("নতুন প্ল্যান")
-    if st.button("সেভ প্ল্যান"):
-        if plan_text:
-            requests.post(f"{API_URL}?sheet=Plans", json={"data": [{"id": str(datetime.now().timestamp()), "Date": str(datetime.now().date()), "Task": plan_text}]})
+    p_text = st.text_area("নতুন প্ল্যান লিখুন")
+    if st.button("প্ল্যান সেভ করুন"):
+        if p_text:
+            requests.post(f"{API_URL}?sheet=Plans", json={"data": [{"id": str(datetime.now().timestamp()), "Date": str(datetime.now().date()), "Task": p_text}]})
             st.rerun()
     df_p = get_safe_data("Plans")
     if not df_p.empty: st.table(df_p[['Date', 'Task']].iloc[::-1])
 
 with t_exp:
     st.subheader("🌟 অভিজ্ঞতা")
-    good_in = st.text_input("ভালো")
-    bad_in = st.text_input("খারাপ")
-    if st.button("অভিজ্ঞতা সেভ"):
-        requests.post(f"{API_URL}?sheet=Experiences", json={"data": [{"Date": str(datetime.now().date()), "Good": good_in, "Bad": bad_in}]})
-        st.rerun()
+    with st.form("exp_form"):
+        g_in = st.text_input("ভালো অভিজ্ঞতা")
+        b_in = st.text_input("খারাপ অভিজ্ঞতা")
+        if st.form_submit_button("সেভ"):
+            requests.post(f"{API_URL}?sheet=Experiences", json={"data": [{"Date": str(datetime.now().date()), "Good": g_in, "Bad": b_in}]})
+            st.rerun()
     df_e = get_safe_data("Experiences")
     if not df_e.empty: st.table(df_e.iloc[::-1])
 
@@ -157,7 +167,8 @@ with t_phone:
     st.subheader("📱 ফোনবুক")
     df_ph = get_safe_data("Phonebook")
     if not df_ph.empty:
-        for i, row in df_ph.iterrows():
-            st.write(f"👤 {row['Name']} - {row['Mobile']}")
-            st.markdown(f'<a href="tel:{row["Mobile"]}" class="call-btn">📞 কল দিন</a>', unsafe_allow_html=True)
+        for i, r in df_ph.iterrows():
+            col1, col2 = st.columns([3, 1])
+            col1.write(f"👤 **{r['Name']}** - {r['Mobile']}")
+            col2.markdown(f'<a href="tel:{r["Mobile"]}" class="call-btn">📞 কল</a>', unsafe_allow_html=True)
             st.divider()
