@@ -73,12 +73,11 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ৫. ট্যাব সিস্টেম
 t1, t2, t3, t4 = st.tabs(["💰 লেনদেন", "🗓️ পরিকল্পনা", "🌟 অভিজ্ঞতা", "📱 ফোনবুক"])
 
-# --- লেনদেন ট্যাব (এডিট ফিক্সসহ) ---
+# --- লেনদেন ট্যাব (আয়, ব্যয়, দেনা, পাওনা ও এডিট ফিক্স) ---
 with t1:
     cats = ["আয়", "ব্যয়", "বকেয়া", "দেনা", "পাওনা"]
     if "edit_row" not in st.session_state: st.session_state.edit_row = None
 
-    # এডিট ডাটা হ্যান্ডলিং
     d_v, c_i, ds_v, am_v = datetime.now(), 0, "", 0
     if st.session_state.edit_row is not None:
         try:
@@ -111,29 +110,25 @@ with t1:
             if not df_main.empty and 'Category' in df_main.columns:
                 sub_df = df_main[df_main['Category'] == cats[i]]
                 if not sub_df.empty:
-                    # কালারফুল টেবিল
                     html_table = f'<table class="custom-table"><tr><th>তারিখ</th><th>বিবরণ</th><th>টাকা</th></tr>'
                     for _, r in sub_df.iloc[::-1].iterrows():
                         html_table += f'<tr><td class="t-date">{r["Date"]}</td><td class="t-desc">{r["Description"]}</td><td class="t-amt">{r["Amount"]} ৳</td></tr>'
                     html_table += '</table>'
                     st.markdown(html_table, unsafe_allow_html=True)
-                    
-                    # নীল টোটাল বক্স
                     st.markdown(f'<div class="total-summary-box">📊 মোট {cats[i]}: {sub_df["Amount"].sum()} ৳</div>', unsafe_allow_html=True)
                     
-                    # এডিট বাটন
                     with st.expander("এডিট/ডিলিট"):
                         for idx, r in sub_df.iterrows():
                             c1, c2, c3 = st.columns([3, 1, 1])
                             c1.write(f"{r['Date']} - {r['Description']}")
-                            if c2.button("📝", key=f"edit_{idx}_{i}"):
+                            if c2.button("📝 এডিট", key=f"edit_{idx}_{i}"):
                                 st.session_state.edit_row = r
                                 st.rerun()
-                            if c3.button("🗑️", key=f"del_{idx}_{i}"):
+                            if c3.button("🗑️ ডিলিট", key=f"del_{idx}_{i}"):
                                 requests.delete(f"{API_URL}/Description/{r['Description']}?sheet=Sheet1")
                                 st.rerun()
 
-# --- পরিকল্পনা ট্যাব ---
+# --- পরিকল্পনা ট্যাব (Work Plan) ---
 with t2:
     st.subheader("🗓️ আজকের পরিকল্পনা")
     df_p = get_safe_data("Plans")
@@ -145,7 +140,7 @@ with t2:
     if not df_p.empty:
         st.table(df_p.iloc[::-1])
 
-# --- অভিজ্ঞতা ট্যাব ---
+# --- অভিজ্ঞতা ট্যাব (Experience Log) ---
 with t3:
     st.subheader("🌟 অভিজ্ঞতা ডায়েরি")
     df_e = get_safe_data("Experiences")
@@ -158,7 +153,7 @@ with t3:
     if not df_e.empty:
         st.table(df_e.iloc[::-1])
 
-# --- ফোনবুক ট্যাব ---
+# --- ফোনবুক ট্যাব (Mobile Book) ---
 with t4:
     st.subheader("📱 ফোনবুক / কন্টাক্ট")
     df_ph = get_safe_data("Phonebook")
@@ -167,7 +162,8 @@ with t4:
         mobile = st.text_input("মোবাইল নম্বর")
         if st.form_submit_button("নম্বর সেভ করুন"):
             if name and mobile:
-                requests.post(f"{API_URL}?sheet=Phonebook", json={"data": [{"Name": name, "Mobile": str(mobile)}]})
+                # মোবাইল নম্বর ফরম্যাট ফিক্স (যাতে '0' না কাটে)
+                requests.post(f"{API_URL}?sheet=Phonebook", json={"data": [{"Name": name, "Mobile": f"'{mobile}"}]})
                 st.rerun()
     st.divider()
     if not df_ph.empty:
